@@ -70,6 +70,13 @@ async function withdraw(pool, id, amountCents) {
 async function transfer(pool, { fromId, toId, amountCents, reference } = {}) {
   validateAmount(amountCents);
 
+  // D-03: Validar que no sea una autotransferencia antes de operar
+  if (fromId === toId) {
+    const err = new Error("No se puede transferir a la misma cuenta");
+    err.status = 400; // Código HTTP requerido por el contrato y la especificación
+    throw err;
+  }
+
   const from = await getAccount(pool, fromId);
   const to = await getAccount(pool, toId);
 
@@ -85,21 +92,39 @@ async function transfer(pool, { fromId, toId, amountCents, reference } = {}) {
     throw err;
   }
 
-  await pool.query(
-    "UPDATE accounts SET balance = balance - $1 WHERE id = $2",
-    [amountCents, fromId]
-  );
-  await pool.query(
-    "UPDATE accounts SET balance = balance + $1 WHERE id = $2",
-    [amountCents, toId]
-  );
+  // D-05: Adquirir cliente y arrancar transacción atómica
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-  const { rows } = await pool.query(
-    "INSERT INTO transfers (from_account, to_account, amount, reference) " +
-      "VALUES ($1, $2, $3, $4) RETURNING id, from_account, to_account, amount, reference, created_at",
-    [fromId, toId, amountCents, reference || null]
-  );
-  return rows[0];
+    // 1. Debitar saldo de la cuenta de origen
+    await client.query(
+      "UPDATE accounts SET balance = balance - $1 WHERE id = $2",
+      [amountCents, fromId]
+    );
+
+    // 2. Acreditar saldo a la cuenta de destino
+    await client.query(
+      "UPDATE accounts SET balance = balance + $1 WHERE id = $2",
+      [amountCents, toId]
+    );
+
+    // 3. Registrar la transferencia en el historial
+    const { rows } = await client.query(
+      "INSERT INTO transfers (from_account, to_account, amount, reference) " +
+        "VALUES ($1, $2, $3, $4) RETURNING id, from_account, to_account, amount, reference, created_at",
+      [fromId, toId, amountCents, reference || null]
+    );
+
+    await client.query("COMMIT"); // Consolidar transacción
+    return rows[0];
+
+  } catch (error) {
+    await client.query("ROLLBACK"); // Deshacer cambios parciales si algo falla
+    throw error;
+  } finally {
+    client.release(); // Liberar el cliente de vuelta al pool
+  }
 }
 
 module.exports = {
