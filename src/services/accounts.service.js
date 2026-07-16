@@ -26,7 +26,7 @@ async function getAccount(pool, id) {
 async function listAccounts(pool) {
   const { rows } = await pool.query(
     "SELECT id, owner, balance, currency, status, created_at " +
-      "FROM accounts ORDER BY id DESC"
+      "FROM accounts ORDER BY id ASC"
   );
   return rows;
 }
