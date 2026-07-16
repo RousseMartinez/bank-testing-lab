@@ -77,25 +77,37 @@ async function transfer(pool, { fromId, toId, amountCents, reference } = {}) {
     throw err;
   }
 
-  const from = await getAccount(pool, fromId);
-  const to = await getAccount(pool, toId);
-
-  if (!from || !to) {
-    const err = new Error("Cuenta de origen o destino no encontrada");
-    err.status = 404;
-    throw err;
-  }
-
-  if (!canWithdraw(Number(from.balance), amountCents)) {
-    const err = new Error("Fondos insuficientes");
-    err.status = 422;
-    throw err;
-  }
-
-  // D-05: Adquirir cliente y arrancar transacción atómica
+  // D-05: Adquirir el cliente dedicado al inicio
   const client = await pool.connect();
+  
   try {
+    // Iniciamos la transacción de inmediato
     await client.query("BEGIN");
+
+    // Consultamos las cuentas usando el cliente de la transacción, no el pool general
+    const fromRes = await client.query(
+      "SELECT id, owner, balance, currency, status, created_at FROM accounts WHERE id = $1 FOR UPDATE", 
+      [fromId]
+    );
+    const toRes = await client.query(
+      "SELECT id, owner, balance, currency, status, created_at FROM accounts WHERE id = $1 FOR UPDATE", 
+      [toId]
+    );
+
+    const from = fromRes.rows[0];
+    const to = toRes.rows[0];
+
+    if (!from || !to) {
+      const err = new Error("Cuenta de origen o destino no encontrada");
+      err.status = 404;
+      throw err;
+    }
+
+    if (!canWithdraw(Number(from.balance), amountCents)) {
+      const err = new Error("Fondos insuficientes");
+      err.status = 422;
+      throw err;
+    }
 
     // 1. Debitar saldo de la cuenta de origen
     await client.query(
@@ -120,10 +132,15 @@ async function transfer(pool, { fromId, toId, amountCents, reference } = {}) {
     return rows[0];
 
   } catch (error) {
-    await client.query("ROLLBACK"); // Deshacer cambios parciales si algo falla
+    // Si la transacción ya había comenzado, hacemos ROLLBACK
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackError) {
+      // Ignorar fallos de rollback si la conexión ya se había perdido
+    }
     throw error;
   } finally {
-    client.release(); // Liberar el cliente de vuelta al pool
+    client.release(); // Libera el cliente de vuelta al pool
   }
 }
 
