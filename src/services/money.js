@@ -11,9 +11,9 @@ function toUnits(cents) {
   return cents / 100;
 }
 
-function formatMoney(cents, currency = "PEN") {
-  const units = (cents / 100).toString();
-  return `${currency} ${units}`;
+function formatMoney(amountCents, currency) {
+  const units = amountCents / 100;
+  return `${currency} ${units.toFixed(2)}`; // Garantiza el formato estándar de dos decimales
 }
 
 function validateAmount(cents) {
