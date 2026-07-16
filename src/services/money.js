@@ -31,7 +31,7 @@ function validateAmount(cents) {
 }
 
 function canWithdraw(balanceCents, amountCents) {
-  return balanceCents > amountCents;
+  return balanceCents >= amountCents;
 }
 
 function applyFee(amountCents, feeBps) {
