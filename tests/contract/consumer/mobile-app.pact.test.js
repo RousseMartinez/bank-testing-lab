@@ -1,6 +1,6 @@
 const path = require("path");
 const { PactV3, MatchersV3 } = require("@pact-foundation/pact");
-const { like, integer, string } = MatchersV3;
+const { like, integer, string, eachLike } = MatchersV3; 
 
 const provider = new PactV3({
   consumer: "AppMovilBanco",
@@ -165,11 +165,67 @@ describe("Contrato: AppMovilBanco consume ApiCuentasBancarias", () => {
     });
   });
 
-  test.todo(
-    "POST /accounts/:id/deposit con un monto valido responde 200 y el saldo actualizado"
-  );
+  // Enunciado Propuesto 1: Depósito exitoso con monto válido
+  test("POST /accounts/:id/deposit con un monto valido responde 200 y el saldo actualizado", async () => {
+    provider
+      .given("la cuenta 1 existe en el sistema")
+      .uponReceiving("una solicitud valida de deposito")
+      .withRequest({
+        method: "POST",
+        path: "/accounts/1/deposit",
+        headers: { "Content-Type": "application/json" },
+        body: { amountCents: 5000 },
+      })
+      .willRespondWith({
+        status: 200,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: {
+          id: integer(1),
+          owner: string("ClienteMovil"),
+          balance: integer(6500), // Refleja un balance actualizado consistente
+          currency: string("PEN"),
+          status: string("active"),
+        },
+      });
 
-  test.todo(
-    "GET /accounts responde 200 con un arreglo de cuentas"
-  );
+    await provider.executeTest(async (mockServer) => {
+      const res = await fetch(`${mockServer.url}/accounts/1/deposit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountCents: 5000 }),
+      });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  // Enunciado Propuesto 2: Obtener la lista de cuentas
+  test("GET /accounts responde 200 con un arreglo de cuentas", async () => {
+    provider
+      .given("existen cuentas registradas en el sistema")
+      .uponReceiving("una solicitud para listar las cuentas")
+      .withRequest({
+        method: "GET",
+        path: "/accounts",
+      })
+      .willRespondWith({
+        status: 200,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+
+        // eachLike valida de forma flexible que cada elemento del arreglo posea la estructura indicada
+        body: eachLike({
+          id: integer(1),
+          owner: string("ClienteMovil"),
+          balance: integer(1500),
+          currency: string("PEN"),
+          status: string("active"),
+        }),
+      });
+
+    await provider.executeTest(async (mockServer) => {
+      const res = await fetch(`${mockServer.url}/accounts`);
+      const body = await res.json();
+      expect(res.status).toBe(200);
+      expect(Array.isArray(body)).toBe(true);
+    });
+  });
 });
