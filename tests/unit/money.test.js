@@ -49,4 +49,11 @@ describe("money (pruebas unitarias)", () => {
   test("toCents redondea correctamente 19.999 a 2000 céntimos y no a 1999", () => {
   expect(toCents(19.999)).toBe(2000);
 });
+
+  test("M4 BUSTER: Eliminar mutante superviviente en la fórmula de computeInterest", () => {
+  // Con un monto alto (10,000,000 céntimos), tasa del 5% y 180 días:
+  // Fórmula exacta: 10000000 * 0.05 * (180 / 365) = 246575.342... -> Redondeado a 246575
+  // Si Stryker altera la fórmula (ej. cambiando el orden o truncando divisiones), el resultado diferirá drásticamente.
+  expect(computeInterest(10000000, 5, 180)).toBe(246575);
+});
 });
