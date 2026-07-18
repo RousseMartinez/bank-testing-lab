@@ -52,11 +52,48 @@ describe("Snapshot testing (formato y estructuras de salida)", () => {
 `);
   });
 
-  test.todo(
-    "capturar el snapshot del cuerpo de respuesta de POST /accounts usando property matchers para id y created_at"
-  );
+const { createAccount } = require("../../src/services/accounts.service");
+const { Pool } = require("pg");
+let pool;
 
-  test.todo(
-    "capturar el snapshot de buildTransferReceipt para un monto con tres cifras de centimos redondeadas"
-  );
+  beforeAll(() => {
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL || "postgres://postgres:postgres@db:5432/bank_testing"
+    });
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  test("Capturar el snapshot del cuerpo de respuesta de POST /accounts usando property matchers para id y created_at", async () => {
+    // 1. Simulamos la creación que haría el endpoint POST /accounts
+    const cuerpoRespuesta = await createAccount(pool, { owner: "Jean Paul", currency: "PEN" });
+
+    // 2. Ejecutamos el snapshot test usando Property Matchers para los campos cambiantes
+    expect(cuerpoRespuesta).toMatchSnapshot({
+      id: expect.any(Number),          // El ID siempre debe ser un número incremental
+      created_at: expect.any(Date)      // La fecha de creación siempre debe ser una instancia de Date de Postgres
+    });
+  });
+
+  test("capturar el snapshot de buildTransferReceipt para un monto con tres cifras de centimos redondeadas", () => {
+  const receipt = buildTransferReceipt({
+    id: 99,
+    fromOwner: "Pedro",
+    toOwner: "Sofia",
+    amountCents: 1000.67, // Debe formatearse correctamente
+    currency: "USD",
+    reference: "FRACT-TEST"
+  });
+  expect(receipt).toMatchInlineSnapshot(`
+    {
+      "amount": "USD 10.01",
+      "receiptId": 99,
+      "reference": "FRACT-TEST",
+      "summary": "Pedro -> Sofia",
+    }
+    `);
+  }); 
+
 });
