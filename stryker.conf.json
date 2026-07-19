@@ -2,6 +2,7 @@
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "packageManager": "npm",
   "testRunner": "jest",
+  "tempDirName": "stryker-tmp",
   "reporters": ["html", "clear-text", "progress"],
   "coverageAnalysis": "perTest",
   "mutate": [
@@ -13,8 +14,7 @@
     "config": {
       "testEnvironment": "node",
       "testMatch": [
-        "**/tests/unit/**/*.test.js",
-        "**/tests/integration/**/*.test.js"
+        "<rootDir>/tests/unit/**/*.test.js"
       ]
     }
   },
